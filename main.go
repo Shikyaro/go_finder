@@ -10,7 +10,7 @@ import (
 	"sync"
 )
 
-func worker(id int, jobs <-chan string, results chan<- int, wg *sync.WaitGroup) {
+func worker(jobs <-chan string, results chan<- int, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for j := range jobs {
 		resp, err := http.Get(j)
@@ -24,7 +24,7 @@ func worker(id int, jobs <-chan string, results chan<- int, wg *sync.WaitGroup) 
 			} else {
 				body := string(bodyBytes)
 				strCount := strings.Count(body, "Go")
-				fmt.Printf("Count for %s: %d worker %d\n", j, strCount, id)
+				fmt.Printf("Count for %s: %d \n", j, strCount)
 				resp.Body.Close()
 				results <- strCount
 			}
@@ -62,7 +62,7 @@ func main() {
 	var workerWaiter sync.WaitGroup
 	for j := 0; j < k; j++ {
 		workerWaiter.Add(1)
-		go worker(j, jobs, results, &workerWaiter)
+		go worker(jobs, results, &workerWaiter)
 	}
 	go receiver(results, stopChannel)
 
