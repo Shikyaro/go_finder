@@ -10,7 +10,7 @@ import (
 	"sync"
 )
 
-func worker(jobs <-chan string, results chan<- int, wg *sync.WaitGroup) {
+func worker(id int, jobs <-chan string, results chan<- int, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for j := range jobs {
 		resp, err := http.Get(j)
@@ -24,7 +24,7 @@ func worker(jobs <-chan string, results chan<- int, wg *sync.WaitGroup) {
 			} else {
 				body := string(bodyBytes)
 				strCount := strings.Count(body, "Go")
-				fmt.Printf("Count for %s: %d worker \n", j, strCount)
+				fmt.Printf("Count for %s: %d worker %d\n", j, strCount, id)
 				resp.Body.Close()
 				results <- strCount
 			}
@@ -34,38 +34,51 @@ func worker(jobs <-chan string, results chan<- int, wg *sync.WaitGroup) {
 	}
 }
 
+func receiver(results <-chan int, stopChannel chan bool) {
+	totalCount := 0
+	for {
+		select {
+		case i := <-results:
+			{
+				totalCount += i
+			}
+		case <-stopChannel:
+			fmt.Printf("Total: %d ", totalCount)
+			stopChannel <- true
+			return
+		}
+	}
+
+}
+
 func main() {
-	var lines []string
 	k := 5
 	scanner := bufio.NewScanner(os.Stdin)
 
+	jobs := make(chan string, k)
+	results := make(chan int)
+	stopChannel := make(chan bool)
+
+	var workerWaiter sync.WaitGroup
+	for j := 0; j < k; j++ {
+		workerWaiter.Add(1)
+		go worker(j, jobs, results, &workerWaiter)
+	}
+	go receiver(results, stopChannel)
+
 	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
+		jobs <- scanner.Text()
 	}
 
 	if scanner.Err() != nil {
 		panic(scanner.Err())
 	}
 
-	jobs := make(chan string, len(lines))
-	results := make(chan int, len(lines))
-	var workerWaiter sync.WaitGroup
-	for j := 0; j < k; j++ {
-		workerWaiter.Add(1)
-		go worker(jobs, results, &workerWaiter)
-	}
-
-	for _, url := range lines {
-		jobs <- url
-	}
 	close(jobs)
 
 	workerWaiter.Wait()
-	totalCount := 0
-	resultsCount := len(results)
 
-	for j := 0; j < resultsCount; j++ {
-		totalCount += <-results
-	}
-	fmt.Printf("Total: %d", totalCount)
+	stopChannel <- true
+
+	<-stopChannel
 }
