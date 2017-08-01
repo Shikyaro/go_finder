@@ -16,20 +16,18 @@ func worker(jobs <-chan string, results chan<- int, wg *sync.WaitGroup) {
 		resp, err := http.Get(j)
 		if err != nil {
 			fmt.Printf("Worker failed to get %s with error %s\n", j, err)
-			continue
-		}
-		if resp.StatusCode == http.StatusOK {
+		} else if resp.StatusCode == http.StatusOK {
 			bodyBytes, err := ioutil.ReadAll(resp.Body)
 			if err != nil {
 				fmt.Printf("Worker failed to decode response from %s"+
 					" with error %s\n", j, err)
-				continue
+			} else {
+				body := string(bodyBytes)
+				strCount := strings.Count(body, "Go")
+				fmt.Printf("Count for %s: %d worker \n", j, strCount)
+				resp.Body.Close()
+				results <- strCount
 			}
-			body := string(bodyBytes)
-			strCount := strings.Count(body, "Go")
-			fmt.Printf("Count for %s: %d \n", j, strCount)
-			resp.Body.Close()
-			results <- strCount
 		} else {
 			fmt.Printf("Page %s returned code %d\n", j, resp.StatusCode)
 		}
